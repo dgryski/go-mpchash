@@ -14,56 +14,94 @@ type Multi struct {
 	seeds   []uint64
 	hashf   func(b []byte, s uint64) uint64
 
-	bmap    map[uint64]string
-	bhashes []uint64
+	bmap map[uint64]string
+
+	// We store sorted slices of hashes by bit prefix
+	bhashes     [][]uint64
+	prefixmask  uint64
+	prefixshift uint64
 }
 
 func New(buckets []string, h func(b []byte, s uint64) uint64, seeds []uint64) *Multi {
+
 	m := &Multi{
-		buckets: buckets,
+		buckets: make([]string, len(buckets)),
 		hashf:   h,
 		seeds:   seeds,
-		bhashes: make([]uint64, len(buckets)),
 		bmap:    make(map[uint64]string, len(buckets)),
 	}
 
+	copy(m.buckets, buckets)
+
+	const desiredCollisionRate = 6
+	prefixlen := len(buckets) / desiredCollisionRate
+	psize := ilog2(prefixlen)
+
+	m.prefixmask = ((1 << psize) - 1) << (64 - psize)
+	m.prefixshift = 64 - psize
+
+	m.bhashes = make([][]uint64, 1<<psize)
+
 	for i, b := range buckets {
 		h := m.hashf([]byte(b), 0)
-		m.bhashes[i] = h
+		prefix := (h & m.prefixmask) >> m.prefixshift
+
+		m.bhashes[prefix] = append(m.bhashes[prefix], h)
 		m.bmap[h] = b
 		m.buckets[i] = b
 	}
 
-	sort.Sort(uint64Slice(m.bhashes))
+	for _, v := range m.bhashes {
+		sort.Sort(uint64Slice(v))
+	}
 
 	return m
 }
 
 func (m *Multi) Hash(key string) string {
-
 	bkey := []byte(key)
 
 	minDistance := uint64(math.MaxUint64)
-	var minIdx int
+
+	var minhash uint64
 
 	for _, seed := range m.seeds {
 		hash := m.hashf(bkey, seed)
+		prefix := (hash & m.prefixmask) >> m.prefixshift
 
-		idx := sort.Search(len(m.bhashes), func(i int) bool { return m.bhashes[i] >= hash })
+		var node uint64
+	FOUND:
+		for {
+			uints := m.bhashes[prefix]
 
-		// Means we have cycled back to the first replica.
-		if idx == len(m.bhashes) {
-			idx = 0
+			for _, v := range uints {
+				if hash < v {
+					node = v
+					break FOUND
+				}
+			}
+
+			prefix++
+			if prefix == uint64(len(m.bhashes)) {
+				prefix = 0
+				// wrapped -- take the first node hash we can find
+				for uints = nil; uints == nil; prefix++ {
+					uints = m.bhashes[prefix]
+				}
+
+				node = uints[0]
+				break FOUND
+			}
 		}
 
-		distance := m.bhashes[idx] - hash
+		distance := node - hash
 		if distance < minDistance {
 			minDistance = distance
-			minIdx = idx
+			minhash = node
 		}
 	}
 
-	return m.bmap[m.bhashes[minIdx]]
+	return m.bmap[minhash]
 }
 
 type uint64Slice []uint64
@@ -71,3 +109,12 @@ type uint64Slice []uint64
 func (p uint64Slice) Len() int           { return len(p) }
 func (p uint64Slice) Less(i, j int) bool { return p[i] < p[j] }
 func (p uint64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+// integer log base 2
+func ilog2(v int) uint64 {
+	var r uint64
+	for ; v != 0; v >>= 1 {
+		r++
+	}
+	return r
+}
