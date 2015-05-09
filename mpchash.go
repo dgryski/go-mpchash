@@ -11,8 +11,9 @@ import (
 
 type Multi struct {
 	buckets []string
-	seeds   []uint64
+	seeds   [2]uint64
 	hashf   func(b []byte, s uint64) uint64
+	k       int
 
 	bmap map[uint64]string
 
@@ -22,13 +23,14 @@ type Multi struct {
 	prefixshift uint64
 }
 
-func New(buckets []string, h func(b []byte, s uint64) uint64, seeds []uint64) *Multi {
+func New(buckets []string, h func(b []byte, s uint64) uint64, seeds [2]uint64, k int) *Multi {
 
 	m := &Multi{
 		buckets: make([]string, len(buckets)),
 		hashf:   h,
 		seeds:   seeds,
 		bmap:    make(map[uint64]string, len(buckets)),
+		k:       k,
 	}
 
 	copy(m.buckets, buckets)
@@ -65,8 +67,11 @@ func (m *Multi) Hash(key string) string {
 
 	var minhash uint64
 
-	for _, seed := range m.seeds {
-		hash := m.hashf(bkey, seed)
+	h1 := m.hashf(bkey, m.seeds[0])
+	h2 := m.hashf(bkey, m.seeds[1])
+
+	for i := 0; i < m.k; i++ {
+		hash := h1 + uint64(i)*h2
 		prefix := (hash & m.prefixmask) >> m.prefixshift
 
 		var node uint64

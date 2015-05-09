@@ -11,7 +11,7 @@ func benchmarkLookup(b *testing.B, nbuckets int) {
 	for i := 1; i <= nbuckets; i++ {
 		buckets = append(buckets, fmt.Sprintf("shard-%d", i))
 	}
-	m := New(buckets, siphash64seed, seeds)
+	m := New(buckets, siphash64seed, [2]uint64{1, 2}, 21)
 
 	b.ResetTimer()
 
