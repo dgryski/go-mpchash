@@ -16,9 +16,7 @@ func benchmarkLookup(b *testing.B, nbuckets int) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		for _, b := range buckets {
-			m.Hash(b)
-		}
+		m.Hash(buckets[i&(nbuckets-1)])
 	}
 }
 
