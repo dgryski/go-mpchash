@@ -44,13 +44,12 @@ func New(buckets []string, h func(b []byte, s uint64) uint64, seeds [2]uint64, k
 
 	m.bhashes = make([][]uint64, 1<<psize)
 
-	for i, b := range buckets {
+	for _, b := range buckets {
 		h := m.hashf([]byte(b), 0)
 		prefix := (h & m.prefixmask) >> m.prefixshift
 
 		m.bhashes[prefix] = append(m.bhashes[prefix], h)
 		m.bmap[h] = b
-		m.buckets[i] = b
 	}
 
 	for _, v := range m.bhashes {
