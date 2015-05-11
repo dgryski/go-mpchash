@@ -9,6 +9,7 @@ import (
 	"sort"
 )
 
+// Multi selects buckets with a multi-probe consistent hash
 type Multi struct {
 	buckets []string
 	seeds   [2]uint64
@@ -23,6 +24,7 @@ type Multi struct {
 	prefixshift uint64
 }
 
+// New returns a new multi-probe hasher.  The hash function h is used with the two seeds to generate k different probes.
 func New(buckets []string, h func(b []byte, s uint64) uint64, seeds [2]uint64, k int) *Multi {
 
 	m := &Multi{
@@ -59,6 +61,7 @@ func New(buckets []string, h func(b []byte, s uint64) uint64, seeds [2]uint64, k
 	return m
 }
 
+// Hash returns the bucket for a given key
 func (m *Multi) Hash(key string) string {
 	bkey := []byte(key)
 
